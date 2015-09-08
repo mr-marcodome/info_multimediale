@@ -5,10 +5,10 @@ import os
 import numpy as np
 import argparse
 from primesense import openni2
-import cv2
+import cv2, math
 import Image
 
-MIN_RANGE=150
+MIN_RANGE=1300
 MAX_RANGE=2500
 MIN_AREA=5000
 MIN_HEIGHT=1200
@@ -16,7 +16,11 @@ N_ITER = 5
 
 EXT = ".csv"
 
-
+def distanza(p1,p2):
+		
+	#calcola la distanza geometrica tra due punti in un frame		
+	dis = (p2[0] - p1[0])**2 + (p2[1] - p1[1])**2
+	return math.sqrt(dis)
 
 def removeBlackPixels(depth):
 	
@@ -60,6 +64,28 @@ def extractMask(depth_array_fore):
 	
 	return mask
 
+def extractMaskORB(depth_array_fore):
+
+	#segmentazione della maschera
+	mask = cv2.inRange(depth_array_fore, 1300, MAX_RANGE)
+	
+	contours, hierarchy = cv2.findContours(mask.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+	#eliminazione, dal vettore contours, dei contorni che hanno area superiore a MIN_AREA (quindi quelli più significativi)
+	for idx, cnt in enumerate(contours):
+		area = cv2.contourArea(cnt)		
+		if (area>MIN_AREA):
+			contours.pop(idx)	
+		
+	#eliminazione dei contorni rimanenti dalla maschera
+	cv2.drawContours(mask, contours, -1, 0, -1)	
+	
+	#eliminazione del rumore tramite l'operazione morfologica di apertura
+	kernel = np.ones((5,5),np.uint8)
+	maskORB = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+	
+	return maskORB
+
 def getMaxHeight(depth, mask):
 
 	#applicazione della maschera, così si è certi che il massimo venga
@@ -67,12 +93,15 @@ def getMaxHeight(depth, mask):
 	masked = cv2.bitwise_and(depth,depth,mask = mask)
 	_,H,_,posmax = cv2.minMaxLoc(masked)
 	
-	return H, posmax[0], posmax[1], masked
+	return H, posmax[0], posmax[1]
 
 def getMinHeight(depth, mask):
 
 	#applicazione della maschera, così si è certi che il minimo venga
 	#trovato sopra al soggetto
+	#MIN = 1300
+	#MAX = 2500
+	#mask1 = cv2.inRange(depth, MIN, MAX)	
 	masked = cv2.bitwise_and(depth,depth,mask = mask)
 	masked2 = masked +65535	
 	h,_,posmin,_ = cv2.minMaxLoc(masked2)
@@ -114,7 +143,8 @@ def main():
 	newid=True
 	contperid=0
 	i=1
-	
+	HMAX = 0
+	maxdist = 0
 	while (True):
 		#acquisizione degli array relativi ai frame dallo stream RGB e Depth
 		frame_depth = depth_stream.read_frame()
@@ -146,7 +176,32 @@ def main():
 
 		#estrazione della maschera dal depth foreground
 		mask = extractMask(depth_array_fore)
-		H, x, y, masked = getMaxHeight(depth_array_fore, mask)
+		H, x, y = getMaxHeight(depth_array_fore, mask)
+		if H>HMAX:
+			HMAX = H	
+
+		#inizializzazione STAR detector
+		orb = cv2.ORB()
+
+		#ricerca dei keypoints con ORB
+		kp = orb.detect(mask,None)
+		pn1, pn2 = [0,0]
+		for punto in kp:
+			for punto2 in kp:
+				#calcolo la distanza dei due keypoint					
+				dist = distanza(punto.pt,punto2.pt)
+				if dist > maxdist:
+					maxdist = dist
+					pn1 = punto
+					pn2 = punto2
+					#compute the descriptors with ORB
+					kp, des = orb.compute(mask, kp)
+					#draw only keypoints location,not size and orientation
+					distimg = cv2.drawKeypoints(mask,[pn1,pn2],color=(0,255,255), flags=0)
+					os.chdir("dist")
+					cv2.imwrite(str(i)+"dist.png",distimg)
+					os.chdir("..")
+
 		h, u, v =getMinHeight(depth_array_fore, mask)
 		#se il punto ad altezza massima nel frame depth è maggiore della soglia, si salvano le immagini della maschera
 		if (H>MIN_HEIGHT):
@@ -161,11 +216,13 @@ def main():
 			if (newid==True):
 				contperid+=1
 				newid=False
+				HMAX = 0
+				maxdist = 0
 			
 			
 			cv2.circle(depth_array,tuple((x,y)), 5, 65536, thickness=1)
 			
-			line_to_write = VideoId+";"+  str("{:03d}".format(contperid)) +";"+str(frame_count)+";"+str(frame_depth.timestamp)+";"+str(h)+";"+str(H)+";"+str(u)+";"+str(v)+";"+str(x)+";"+str(y)+"\n"
+			line_to_write = VideoId+";"+  str("{:03d}".format(contperid)) +";"+str(frame_count)+";"+str(frame_depth.timestamp)+";"+str(h)+";"+str(H)+";"+str(u)+";"+str(v)+";"+str(x)+";"+str(y)+";"+str(HMAX)+";"+str(maxdist)+"\n"
 			print line_to_write
 			tracking_file_all.write(line_to_write)
 			line_to_write_color = VideoId+";"+ str("{:03d}".format(contperid))+";"+str(frame_count)+";"+str(frame_color.timestamp)+"\n"
@@ -194,7 +251,7 @@ def main():
 		ch = 0xFF & cv2.waitKey(1)
 		if ch == 27:
 			break	
-	
+		
 	tracking_file_color.close()
 	tracking_file_all.close()
 	depth_stream.stop()
