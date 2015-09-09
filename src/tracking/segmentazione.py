@@ -47,6 +47,24 @@ def extractShoulderWidth(maskPropS, maxd, i):
 	
 	return maxd
 
+def calculateHeadArea(mask):
+	#Calcola Area e Circonferenza della testa
+	contours,hierarchy = cv2.findContours(mask, 1, 2)
+	try:
+		cnt = contours[0]
+		return cv2.contourArea(cnt)
+	except IndexError:
+		return "NULL"
+
+def calculateHeadPerimeter(mask):
+	#Calcola Area e Circonferenza della testa
+	contours,hierarchy = cv2.findContours(mask, 1, 2)
+	try:
+		cnt = contours[0]
+		return cv2.arcLength(cnt,True)
+	except IndexError:
+		return "NULL"
+
 def removeBlackPixels(depth):
 	
 	#vengono realizzate delle operazioni morfologiche che distorcendo in
@@ -114,7 +132,7 @@ def extractMaskPropShoulder(depth_array_fore, H):
 def extractMaskPropHead(depth_array_fore, H):
 
 	#segmentazione della maschera
-	mask = cv2.inRange(depth_array_fore, H-200, H)
+	mask = cv2.inRange(depth_array_fore, H- 150, H)
 	
 	contours, hierarchy = cv2.findContours(mask.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
@@ -229,13 +247,15 @@ def main():
 			maskPropS = extractMaskPropShoulder(depth_array_fore, H)
 			#Calcolo larghezza spalle
 			maxdist = extractShoulderWidth(maskPropS, maxdist, i)
-			
-		if (x > 200 and x < 400):
+		
+		if (x > 100 and x < 500):
 			#Creazione maschera personalizzata sull'altezza della persona per calcolo area Testa
 			maskPropH = extractMaskPropHead(depth_array_fore, H)
 			os.chdir("head")
 			cv2.imwrite(str(i)+"head.png",maskPropH)
 			os.chdir("..")
+			harea = calculateHeadArea(maskPropH)
+			phead = calculateHeadPerimeter(maskPropH)
 
 		#se il punto ad altezza massima nel frame depth è maggiore della soglia, si salvano le immagini
 		if (H>MIN_HEIGHT):
@@ -245,11 +265,13 @@ def main():
 				newid=False
 				HMAX = 0
 				maxdist = 0
+				harea = 0
+				phead = 0
 			
 			
 			cv2.circle(depth_array,tuple((x,y)), 5, 65536, thickness=1)
 			
-			line_to_write = VideoId+";"+  str("{:03d}".format(contperid)) +";"+str(frame_count)+";"+str(frame_depth.timestamp)+";"+str(H)+";"+str(x)+";"+str(y)+";"+str(HMAX)+";"+str(maxdist)+"\n"
+			line_to_write = VideoId+";"+  str("{:03d}".format(contperid)) +";"+str(frame_count)+";"+str(frame_depth.timestamp)+";"+str(H)+";"+str(x)+";"+str(y)+";"+str(HMAX)+";"+str(maxdist)+";"+str(harea)+";"+str(phead)+"\n"
 			print line_to_write
 			tracking_file_all.write(line_to_write)
 			line_to_write_color = VideoId+";"+ str("{:03d}".format(contperid))+";"+str(frame_count)+";"+str(frame_color.timestamp)+"\n"
