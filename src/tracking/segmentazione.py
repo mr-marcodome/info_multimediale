@@ -22,7 +22,7 @@ def distanza(p1,p2):
 	dis = (p2[0] - p1[0])**2 + (p2[1] - p1[1])**2
 	return math.sqrt(dis)
 	
-def extractShoulderWidth(mask, maxd):
+def extractShoulderWidth(maskPropS, maxd, i):
 	
 	#calcola la larghezza delle spalle
 	#inizializzazione STAR detector
@@ -35,17 +35,17 @@ def extractShoulderWidth(mask, maxd):
 		for punto2 in kp:
 			#calcolo la distanza dei due keypoint					
 			dist = distanza(punto.pt,punto2.pt)
-			if dist > maxdist:
-				maxdist = dist
+			if dist > maxd:
+				maxd = dist
 				pn1 = punto
 				pn2 = punto2
-				#compute the descriptors with ORB
-				kp, des = orb.compute(maskPropS, kp)
-				#draw only keypoints location,not size and orientation
+				#Crea un immagine con i keypoint delle spalle e la salva
 				distimg = cv2.drawKeypoints(maskPropS,[pn1,pn2],color=(0,255,0), flags=0)
 				os.chdir("dist")
 				cv2.imwrite(str(i)+"dist.png",distimg)
 				os.chdir("..")
+	
+	return maxd
 
 def removeBlackPixels(depth):
 	
@@ -114,7 +114,7 @@ def extractMaskPropShoulder(depth_array_fore, H):
 def extractMaskPropHead(depth_array_fore, H):
 
 	#segmentazione della maschera
-	mask = cv2.inRange(depth_array_fore, H-230, H)
+	mask = cv2.inRange(depth_array_fore, H-200, H)
 	
 	contours, hierarchy = cv2.findContours(mask.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
@@ -227,29 +227,9 @@ def main():
 		if (H>MIN_HEIGHT):
 			#Creazione maschera personalizzata sull'altezza della persona per calcolo larghezza spalle
 			maskPropS = extractMaskPropShoulder(depth_array_fore, H)
+			#Calcolo larghezza spalle
+			maxdist = extractShoulderWidth(maskPropS, maxdist, i)
 			
-			#inizializzazione STAR detector
-			orb = cv2.ORB()
-
-			#ricerca dei keypoints con ORB
-			kp = orb.detect(maskPropS,None)
-			pn1, pn2 = [0,0]
-			for punto in kp:
-				for punto2 in kp:
-					#calcolo la distanza dei due keypoint					
-					dist = distanza(punto.pt,punto2.pt)
-					if dist > maxdist:
-						maxdist = dist
-						pn1 = punto
-						pn2 = punto2
-						#compute the descriptors with ORB
-						kp, des = orb.compute(maskPropS, kp)
-						#draw only keypoints location,not size and orientation
-						distimg = cv2.drawKeypoints(maskPropS,[pn1,pn2],color=(0,255,0), flags=0)
-						os.chdir("dist")
-						cv2.imwrite(str(i)+"dist.png",distimg)
-						os.chdir("..")
-		
 		if (x > 200 and x < 400):
 			#Creazione maschera personalizzata sull'altezza della persona per calcolo area Testa
 			maskPropH = extractMaskPropHead(depth_array_fore, H)
