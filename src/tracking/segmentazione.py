@@ -236,15 +236,6 @@ def main():
 			os.chdir("head")
 			cv2.imwrite(str(i)+"head.png",maskPropH)
 			os.chdir("..")
-		
-		#Calcolo altezza minima
-		h, u, v =getMinHeight(depth_array_fore, mask)
-		#se il punto ad altezza massima nel frame depth è maggiore della soglia, si salvano le immagini della maschera
-		if (H>MIN_HEIGHT):
-			os.chdir("blob")
-			cv2.imwrite(str(i)+"blob.png",mask)
-			os.chdir("..")
-			i=i+1
 
 		#se il punto ad altezza massima nel frame depth è maggiore della soglia, si salvano le immagini
 		if (H>MIN_HEIGHT):
@@ -258,14 +249,13 @@ def main():
 			
 			cv2.circle(depth_array,tuple((x,y)), 5, 65536, thickness=1)
 			
-			line_to_write = VideoId+";"+  str("{:03d}".format(contperid)) +";"+str(frame_count)+";"+str(frame_depth.timestamp)+";"+str(h)+";"+str(H)+";"+str(u)+";"+str(v)+";"+str(x)+";"+str(y)+";"+str(HMAX)+";"+str(maxdist)+"\n"
+			line_to_write = VideoId+";"+  str("{:03d}".format(contperid)) +";"+str(frame_count)+";"+str(frame_depth.timestamp)+";"+str(H)+";"+str(x)+";"+str(y)+";"+str(HMAX)+";"+str(maxdist)+"\n"
 			print line_to_write
 			tracking_file_all.write(line_to_write)
 			line_to_write_color = VideoId+";"+ str("{:03d}".format(contperid))+";"+str(frame_count)+";"+str(frame_color.timestamp)+"\n"
 			tracking_file_color.write(line_to_write_color)
 			
 			cv2.circle(depth_array,tuple((x,y)), 5, 65536, thickness=7)
-			cv2.circle(depth_array,tuple((u,v)), 5, 65536, thickness=7)
 			ultimopassaggio=frame_count+3 #3 indica quanti frame devono passare dopo il passaggio dell'ultima persona
 			
 		else:
@@ -287,6 +277,7 @@ def main():
 		ch = 0xFF & cv2.waitKey(1)
 		if ch == 27:
 			break	
+		i +=1
 		
 	tracking_file_color.close()
 	tracking_file_all.close()
