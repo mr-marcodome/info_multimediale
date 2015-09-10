@@ -3,7 +3,7 @@
 import cv2
 from matplotlib import pyplot as plt
 
-img = cv2.imread('141dist.png',0)
+img = cv2.imread('25dist.png',0)
 contours, hierarchy = cv2.findContours(img,1,2)
 
 i=0

@@ -13,6 +13,8 @@ MAX_RANGE=2500
 MIN_AREA=5000
 MIN_HEIGHT=1200
 N_ITER = 5
+DIR1 = "dist"
+DIR2 = "head"
 
 EXT = ".csv"
 
@@ -41,7 +43,7 @@ def extractShoulderWidth(maskPropS, maxd, i):
 				pn2 = punto2
 				#Crea un immagine con i keypoint delle spalle e la salva
 				distimg = cv2.drawKeypoints(maskPropS,[pn1,pn2],color=(0,255,0), flags=0)
-				os.chdir("dist")
+				os.chdir(DIR1)
 				cv2.imwrite(str(i)+"dist.png",distimg)
 				os.chdir("..")
 	
@@ -176,6 +178,13 @@ def main():
 	p.add_argument('--v', dest = 'video_path', action = 'store', default = '', help = 'path file *.oni')
 	args = p.parse_args()
 	
+	#creazione delle directory in cui salvare le immagini, se non sono già presenti
+	if not os.path.isdir(DIR1):
+		os.mkdir(DIR1)
+	
+	if not os.path.isdir(DIR2):
+		os.mkdir(DIR2)
+	
 	#inizializzazione di OpenNI e apertura degli stream video	
 	openni2.initialize()
 	dev = openni2.Device.open_file(args.video_path)
@@ -247,11 +256,12 @@ def main():
 			maskPropS = extractMaskPropShoulder(depth_array_fore, H)
 			#Calcolo larghezza spalle
 			maxdist = extractShoulderWidth(maskPropS, maxdist, i)
-		
+		#Serve per evitare un errato calcolo dell'area della testa in quanto ai bordi del frame 
+		#la dimensione della maschera tende ad aumentare di molto
 		if (x > 100 and x < 500):
 			#Creazione maschera personalizzata sull'altezza della persona per calcolo area Testa
 			maskPropH = extractMaskPropHead(depth_array_fore, H)
-			os.chdir("head")
+			os.chdir(DIR2)
 			cv2.imwrite(str(i)+"head.png",maskPropH)
 			os.chdir("..")
 			harea = calculateHeadArea(maskPropH)
