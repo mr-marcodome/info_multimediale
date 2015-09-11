@@ -15,6 +15,7 @@ MIN_HEIGHT=1200
 N_ITER = 5
 DIR1 = "dist"
 DIR2 = "head"
+DIR3 = "shoulderArea"
 
 EXT = ".csv"
 
@@ -24,7 +25,7 @@ def distanza(p1,p2):
 	dis = (p2[0] - p1[0])**2 + (p2[1] - p1[1])**2
 	return math.sqrt(dis)
 	
-def extractShoulderWidth(maskPropS, maxd, i):
+def calculateShoulderWidth(maskPropS, maxd, i):
 	
 	#calcola la larghezza delle spalle
 	#inizializzazione STAR detector
@@ -44,10 +45,38 @@ def extractShoulderWidth(maskPropS, maxd, i):
 				#Crea un immagine con i keypoint delle spalle e la salva
 				distimg = cv2.drawKeypoints(maskPropS,[pn1,pn2],color=(0,255,0), flags=0)
 				os.chdir(DIR1)
-				cv2.imwrite(str(i)+"dist.png",distimg)
+				cv2.imwrite(str(i)+"dist.png", distimg)
 				os.chdir("..")
-	
+				
 	return maxd
+	
+def calculateShoulderAreaPerimeter(mask, i):
+	
+	#Calcolo dei contorni della maschera ad altezza spalle
+	contours, hierarchy = cv2.findContours(mask,1,2)
+	area = 0
+	perimeter = 0
+	try:
+		cnt = contours[0]
+		if len(cnt) >= 5:
+			#L'immagine della maschera viene riempita solo con pixel neri
+			mask[:] = (255)
+			#Approssimazione dei contorni della maschera
+			ellipse = cv2.fitEllipse(cnt)
+			cv2.ellipse(mask,ellipse,(0,0,0),2)
+			contours1,hierarchy1 = cv2.findContours(mask, 1, 2)
+			cnt1 = contours1[0]
+			#Calcolo area e perimetro
+			area = cv2.contourArea(cnt1)
+			perimeter = cv2.arcLength(cnt1,True)
+			os.chdir(DIR3)
+			cv2.imwrite(str(i)+"sarea.png",mask)
+			os.chdir("..")
+		
+		return area, perimeter
+		
+	except IndexError:
+		return area, perimeter
 
 def calculateHeadArea(mask):
 	#Calcola Area e Circonferenza della testa
@@ -56,7 +85,7 @@ def calculateHeadArea(mask):
 		cnt = contours[0]
 		return cv2.contourArea(cnt)
 	except IndexError:
-		return "NULL"
+		return 0
 
 def calculateHeadPerimeter(mask):
 	#Calcola Area e Circonferenza della testa
@@ -65,7 +94,7 @@ def calculateHeadPerimeter(mask):
 		cnt = contours[0]
 		return cv2.arcLength(cnt,True)
 	except IndexError:
-		return "NULL"
+		return 0
 
 def removeBlackPixels(depth):
 	
@@ -184,6 +213,9 @@ def main():
 	
 	if not os.path.isdir(DIR2):
 		os.mkdir(DIR2)
+		
+	if not os.path.isdir(DIR3):
+		os.mkdir(DIR3)
 	
 	#inizializzazione di OpenNI e apertura degli stream video	
 	openni2.initialize()
@@ -255,7 +287,9 @@ def main():
 			#Creazione maschera personalizzata sull'altezza della persona per calcolo larghezza spalle
 			maskPropS = extractMaskPropShoulder(depth_array_fore, H)
 			#Calcolo larghezza spalle
-			maxdist = extractShoulderWidth(maskPropS, maxdist, i)
+			maxdist = calculateShoulderWidth(maskPropS, maxdist, i)
+			sarea, pshoulder = calculateShoulderAreaPerimeter(maskPropS, i)
+		
 		#Serve per evitare un errato calcolo dell'area della testa in quanto ai bordi del frame 
 		#la dimensione della maschera tende ad aumentare di molto
 		if (x > 100 and x < 500):
@@ -264,7 +298,7 @@ def main():
 			os.chdir(DIR2)
 			cv2.imwrite(str(i)+"head.png",maskPropH)
 			os.chdir("..")
-			harea = calculateHeadArea(maskPropH)
+			harea= calculateHeadArea(maskPropH)
 			phead = calculateHeadPerimeter(maskPropH)
 
 		#se il punto ad altezza massima nel frame depth è maggiore della soglia, si salvano le immagini
@@ -273,15 +307,12 @@ def main():
 			if (newid==True):
 				contperid+=1
 				newid=False
-				HMAX = 0
-				maxdist = 0
-				harea = 0
-				phead = 0
+				
 			
 			
 			cv2.circle(depth_array,tuple((x,y)), 5, 65536, thickness=1)
 			
-			line_to_write = VideoId+";"+  str("{:03d}".format(contperid)) +";"+str(frame_count)+";"+str(frame_depth.timestamp)+";"+str(H)+";"+str(x)+";"+str(y)+";"+str(HMAX)+";"+str(maxdist)+";"+str(harea)+";"+str(phead)+"\n"
+			line_to_write = VideoId+";"+  str("{:03d}".format(contperid)) +";"+str(frame_count)+";"+str(frame_depth.timestamp)+";"+str(H)+";"+str(x)+";"+str(y)+";"+str(HMAX)+";"+str(maxdist)+";"+str(harea)+";"+str(phead)+";"+str(sarea)+";"+str(pshoulder)+"\n"
 			print line_to_write
 			tracking_file_all.write(line_to_write)
 			line_to_write_color = VideoId+";"+ str("{:03d}".format(contperid))+";"+str(frame_count)+";"+str(frame_color.timestamp)+"\n"
@@ -300,7 +331,13 @@ def main():
 			tracking_file_color.write(line_to_write_color)
 			#gestione multipersone
 			if (frame_count>ultimopassaggio):
-				newid=True;
+				newid=True
+				HMAX = 0
+				maxdist = 0
+				harea = 0
+				phead = 0
+				sarea = 0
+				pshoulder = 0
 		
 		#cv2.imshow("RGB", color_array)
 		depth_array = depth_array/10000.		
