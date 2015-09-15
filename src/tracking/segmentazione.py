@@ -21,11 +21,12 @@ EXT = ".csv"
 
 def distanza(p1,p2):
 		
-	#calcola la distanza geometrica tra due punti in un frame		
+	#calcola la distanza geometrica tra due punti in un frame
+	#usata per calcolare la larghezza delle spalle		
 	dis = (p2[0] - p1[0])**2 + (p2[1] - p1[1])**2
 	return math.sqrt(dis)
 	
-def calculateShoulderWidth(maskPropS, maxd, i):
+def calculateShoulderWidth(maskPropS, maxd, i, pn1, pn2):
 	
 	#calcola la larghezza delle spalle
 	#inizializzazione STAR detector
@@ -33,7 +34,6 @@ def calculateShoulderWidth(maskPropS, maxd, i):
 
 	#ricerca dei keypoints con ORB
 	kp = orb.detect(maskPropS,None)
-	pn1, pn2 = [0,0]
 	for punto in kp:
 		for punto2 in kp:
 			#calcolo la distanza dei due keypoint					
@@ -47,8 +47,11 @@ def calculateShoulderWidth(maskPropS, maxd, i):
 				os.chdir(DIR1)
 				cv2.imwrite(str(i)+"dist.png", distimg)
 				os.chdir("..")
-				
-	return maxd
+			pn1 = punto
+			pn2 = punto2
+
+
+	return maxd, (int(pn1.pt[0]), int(pn1.pt[1])), (int(pn2.pt[0]), int(pn2.pt[1]))
 	
 def calculateShoulderAreaPerimeter(mask, i):
 	
@@ -190,7 +193,7 @@ def getMaxHeight(depth, mask):
 	_,H,_,posmax = cv2.minMaxLoc(masked)
 	
 	return H, posmax[0], posmax[1]
-
+	
 def getMinHeight(depth, mask):
 
 	#applicazione della maschera, così si è certi che il minimo venga
@@ -245,9 +248,11 @@ def main():
 	ultimopassaggio=0
 	newid=True
 	contperid=0
-	i=1
 	HMAX = 0
 	maxdist = 0
+	shoulderH = 0
+	pn1 = cv2.KeyPoint()
+	pn2 = cv2.KeyPoint()
 	while (True):
 		#acquisizione degli array relativi ai frame dallo stream RGB e Depth
 		frame_depth = depth_stream.read_frame()
@@ -276,7 +281,7 @@ def main():
 		depth_array = removeBlackPixels(depth_array)
 		
 		depth_array_fore = cv2.absdiff(depth_array, depth_array_back)
-
+		
 		#estrazione della maschera dal depth foreground
 		mask = extractMask(depth_array_fore)
 		H, x, y = getMaxHeight(depth_array_fore, mask)
@@ -287,9 +292,14 @@ def main():
 			#Creazione maschera personalizzata sull'altezza della persona per calcolo larghezza spalle
 			maskPropS = extractMaskPropShoulder(depth_array_fore, H)
 			#Calcolo larghezza spalle
-			maxdist = calculateShoulderWidth(maskPropS, maxdist, i)
+			maxdist, p1, p2 = calculateShoulderWidth(maskPropS, maxdist, i, pn1, pn2)
+			#Calcolo altezza spalle nei punti da cui si è calcolata la larghezza spalle
+			shoulderH = (depth_array_fore[p1[1], p1[0]] + depth_array_fore[p2[1], p2[0]])/2
+			#Calcolo altezza testa spalle
+			headShoulder = H-shoulderH
+			#Calcolo area e perimetro spalle
 			sarea, pshoulder = calculateShoulderAreaPerimeter(maskPropS, i)
-		
+
 		#Serve per evitare un errato calcolo dell'area della testa in quanto ai bordi del frame 
 		#la dimensione della maschera tende ad aumentare di molto
 		if (x > 100 and x < 500):
@@ -312,13 +322,14 @@ def main():
 			
 			cv2.circle(depth_array,tuple((x,y)), 5, 65536, thickness=1)
 			
-			line_to_write = VideoId+";"+  str("{:03d}".format(contperid)) +";"+str(frame_count)+";"+str(frame_depth.timestamp)+";"+str(H)+";"+str(x)+";"+str(y)+";"+str(HMAX)+";"+str(maxdist)+";"+str(harea)+";"+str(phead)+";"+str(sarea)+";"+str(pshoulder)+"\n"
+			line_to_write = VideoId+";"+  str("{:03d}".format(contperid)) +";"+str(frame_count)+";"+str(frame_depth.timestamp)+";"+str(H)+";"+str(x)+";"+str(y)+";"+str(HMAX)+";"+str(maxdist)+";"+str(harea)+";"+str(phead)+";"+str(sarea)+";"+str(pshoulder)+";"+str(shoulderH)+";"+str(headShoulder)+"\n"
 			print line_to_write
 			tracking_file_all.write(line_to_write)
 			line_to_write_color = VideoId+";"+ str("{:03d}".format(contperid))+";"+str(frame_count)+";"+str(frame_color.timestamp)+"\n"
 			tracking_file_color.write(line_to_write_color)
 			
 			cv2.circle(depth_array,tuple((x,y)), 5, 65536, thickness=7)
+			
 			ultimopassaggio=frame_count+3 #3 indica quanti frame devono passare dopo il passaggio dell'ultima persona
 			
 		else:
@@ -338,6 +349,8 @@ def main():
 				phead = 0
 				sarea = 0
 				pshoulder = 0
+				shoulderH = 0
+				headShoulder = 0
 		
 		#cv2.imshow("RGB", color_array)
 		depth_array = depth_array/10000.		
