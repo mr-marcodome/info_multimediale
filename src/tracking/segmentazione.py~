@@ -194,6 +194,16 @@ def getMaxHeight(depth, mask):
 	
 	return H, posmax[0], posmax[1]
 	
+def getMinHeight(depth, mask):
+
+	#applicazione della maschera, così si è certi che il minimo venga
+	#trovato sopra al soggetto	
+	masked = cv2.bitwise_and(depth,depth,mask = mask)
+	masked2 = masked +65535	
+	h,_,posmin,_ = cv2.minMaxLoc(masked2)
+	
+	return h, posmin[0], posmin[1]
+
 def main():
 
 	p = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter, description="")
