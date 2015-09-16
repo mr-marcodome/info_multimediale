@@ -8,10 +8,10 @@ from primesense import openni2
 import cv2, math
 import Image
 
-MIN_RANGE=150
-MAX_RANGE=2500
-MIN_AREA=5000
-MIN_HEIGHT=1200
+MIN_RANGE = 150
+MAX_RANGE = 2500
+MIN_AREA = 5000
+MIN_HEIGHT = 1200
 N_ITER = 5
 DIR1 = "dist"
 DIR2 = "head"
@@ -25,7 +25,20 @@ def distanza(p1,p2):
 	#usata per calcolare la larghezza delle spalle		
 	dis = (p2[0] - p1[0])**2 + (p2[1] - p1[1])**2
 	return math.sqrt(dis)
-	
+
+def getMaxValIndex(npVec):
+	if len(npVec) is not 0:
+		maxN=0
+		maxIndex=0
+		for indice,elem in enumerate(npVec):
+			if elem > maxN:
+				maxN = elem
+				maxIndex = indice
+		return maxIndex
+
+	else:
+		raise 'Error: The Array must not be Empty!'
+
 def calculateShoulderWidth(maskPropS, maxd, i, pn1, pn2):
 	
 	#calcola la larghezza delle spalle
@@ -293,7 +306,8 @@ def main():
 		depth_array = removeBlackPixels(depth_array)
 		
 		depth_array_fore = cv2.absdiff(depth_array, depth_array_back)
-		
+		colorMask = depth_array_back
+		mask_foreground = depth_array_back
 		#estrazione della maschera dal depth foreground
 		mask = extractMask(depth_array_fore)
 		H, x, y = getMaxHeight(depth_array_fore, mask)
@@ -324,6 +338,37 @@ def main():
 			os.chdir("blob")
 			cv2.imwrite(str(i)+"blob.png",mask)
 			os.chdir("..")
+		
+			# Estrazione Colore Dei Vestiti in RGB
+			mask_foreground = extractMaskPropShoulder(depth_array_fore, H)
+			kernel_erode = np.ones((5,5),np.uint8)
+			mask_foreground = cv2.erode(mask_foreground,kernel_erode,iterations=5)
+
+			temp_mask = cv2.cvtColor(mask_foreground,cv2.COLOR_GRAY2RGB)
+			colorMask = cv2.bitwise_and(color_array,temp_mask)
+
+			#calcolo istogramma
+			if H > 1200:
+				bChannel = cv2.calcHist([colorMask],[0],mask_foreground,[256],[0,256])
+				gChannel = cv2.calcHist([colorMask],[1],mask_foreground,[256],[0,256])
+				rChannel = cv2.calcHist([colorMask],[2],mask_foreground,[256],[0,256])
+
+				colorePersona = (getMaxValIndex(rChannel),getMaxValIndex(gChannel),getMaxValIndex(bChannel))
+
+		# Estrazione Colore Dei Capelli in RGB
+			mask_foreground = extractMaskPropHead(depth_array_fore, H)
+			mask_foreground = cv2.erode(mask_foreground,kernel_erode,iterations=5)
+
+			temp_mask = cv2.cvtColor(mask_foreground,cv2.COLOR_GRAY2RGB)
+			colorMask = cv2.bitwise_and(color_array,temp_mask)
+
+			#calcolo istogramma
+			if H > 1200:
+				bChannel = cv2.calcHist([colorMask],[0],mask_foreground,[256],[0,256])
+				gChannel = cv2.calcHist([colorMask],[1],mask_foreground,[256],[0,256])
+				rChannel = cv2.calcHist([colorMask],[2],mask_foreground,[256],[0,256])
+
+				coloreCapelli = (getMaxValIndex(rChannel),getMaxValIndex(gChannel),getMaxValIndex(bChannel))
 
 		#Serve per evitare un errato calcolo dell'area della testa in quanto ai bordi del frame 
 		#la dimensione della maschera tende ad aumentare di molto
@@ -347,7 +392,7 @@ def main():
 			
 			cv2.circle(depth_array,tuple((x,y)), 5, 65536, thickness=1)
 			
-			line_to_write = VideoId+";"+  str("{:03d}".format(contperid)) +";"+str(frame_count)+";"+str(frame_depth.timestamp)+";"+str(H)+";"+str(HMAX)+";"+str(shoulderd)+";"+str(maxdist)+";"+str(harea)+";"+str(phead)+";"+str(sarea)+";"+str(pshoulder)+";"+str(shoulderH)+";"+str(headShoulder)+";"+str(hpelvis)+";"+str(minDist)+"\n"
+			line_to_write = VideoId+";"+  str("{:03d}".format(contperid)) +";"+str(frame_count)+";"+str(frame_depth.timestamp)+";"+str(H)+";"+str(HMAX)+";"+str(shoulderd)+";"+str(maxdist)+";"+str(harea)+";"+str(phead)+";"+str(sarea)+";"+str(pshoulder)+";"+str(shoulderH)+";"+str(headShoulder)+";"+str(hpelvis)+";"+str(minDist)+";"+ str(colorePersona)+";"+str(coloreCapelli)+"\n"
 			print line_to_write
 			tracking_file_all.write(line_to_write)
 			line_to_write_color = VideoId+";"+ str("{:03d}".format(contperid))+";"+str(frame_count)+";"+str(frame_color.timestamp)+"\n"
@@ -382,7 +427,6 @@ def main():
 				a = 0
 				b = 0
 		
-		#cv2.imshow("RGB", color_array)
 		depth_array = depth_array/10000.		
 		cv2.imshow("Depth", depth_array)
 			
