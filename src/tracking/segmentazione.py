@@ -29,15 +29,16 @@ def distanza(p1,p2):
 def calculateShoulderWidth(maskPropS, maxd, i, pn1, pn2):
 	
 	#calcola la larghezza delle spalle
+	mdist = [0]
 	#inizializzazione STAR detector
 	orb = cv2.ORB()
-
 	#ricerca dei keypoints con ORB
 	kp = orb.detect(maskPropS,None)
 	for punto in kp:
 		for punto2 in kp:
 			#calcolo la distanza dei due keypoint					
 			dist = distanza(punto.pt,punto2.pt)
+			mdist.append(dist)
 			if dist > maxd:
 				maxd = dist
 				pn1 = punto
@@ -50,8 +51,7 @@ def calculateShoulderWidth(maskPropS, maxd, i, pn1, pn2):
 			pn1 = punto
 			pn2 = punto2
 
-
-	return maxd, (int(pn1.pt[0]), int(pn1.pt[1])), (int(pn2.pt[0]), int(pn2.pt[1]))
+	return maxd, max(mdist), (int(pn1.pt[0]), int(pn1.pt[1])), (int(pn2.pt[0]), int(pn2.pt[1]))
 	
 def calculateShoulderAreaPerimeter(mask, i):
 	
@@ -194,6 +194,16 @@ def getMaxHeight(depth, mask):
 	
 	return H, posmax[0], posmax[1]
 	
+def getMinHeight(depth, mask):
+
+	#applicazione della maschera, così si è certi che il minimo venga
+	#trovato sopra al soggetto
+	mask = cv2.bitwise_and(depth,depth,mask = mask)
+	mask += 65535
+	h,_,posmin,_ = cv2.minMaxLoc(mask)
+	
+	return h, posmin[0], posmin[1]
+	
 def main():
 
 	p = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter, description="")
@@ -241,6 +251,7 @@ def main():
 	HMAX = 0
 	maxdist = 0
 	shoulderH = 0
+	shoulderd = 0
 	pn1 = cv2.KeyPoint()
 	pn2 = cv2.KeyPoint()
 	while (True):
@@ -279,10 +290,12 @@ def main():
 			HMAX = H	
 		
 		if (H>MIN_HEIGHT):
+			#Calcolo dell'altezza minima
+			h, u, v = getMinHeight(depth_array_fore, mask)
 			#Creazione maschera personalizzata sull'altezza della persona per calcolo larghezza spalle
 			maskPropS = extractMaskPropShoulder(depth_array_fore, H)
 			#Calcolo larghezza spalle
-			maxdist, p1, p2 = calculateShoulderWidth(maskPropS, maxdist, i, pn1, pn2)
+			maxdist, shoulderd, p1, p2 = calculateShoulderWidth(maskPropS, maxdist, i, pn1, pn2)
 			#Calcolo altezza spalle nei punti da cui si è calcolata la larghezza spalle
 			shoulderH = (depth_array_fore[p1[1], p1[0]] + depth_array_fore[p2[1], p2[0]])/2
 			#Calcolo altezza testa spalle
@@ -312,13 +325,14 @@ def main():
 			
 			cv2.circle(depth_array,tuple((x,y)), 5, 65536, thickness=1)
 			
-			line_to_write = VideoId+";"+  str("{:03d}".format(contperid)) +";"+str(frame_count)+";"+str(frame_depth.timestamp)+";"+str(H)+";"+str(x)+";"+str(y)+";"+str(HMAX)+";"+str(maxdist)+";"+str(harea)+";"+str(phead)+";"+str(sarea)+";"+str(pshoulder)+";"+str(shoulderH)+";"+str(headShoulder)+"\n"
+			line_to_write = VideoId+";"+  str("{:03d}".format(contperid)) +";"+str(frame_count)+";"+str(frame_depth.timestamp)+";"+str(H)+";"+str(HMAX)+";"+str(shoulderd)+";"+str(maxdist)+";"+str(harea)+";"+str(phead)+";"+str(sarea)+";"+str(pshoulder)+";"+str(shoulderH)+";"+str(headShoulder)+"\n"
 			print line_to_write
 			tracking_file_all.write(line_to_write)
 			line_to_write_color = VideoId+";"+ str("{:03d}".format(contperid))+";"+str(frame_count)+";"+str(frame_color.timestamp)+"\n"
 			tracking_file_color.write(line_to_write_color)
 			
 			cv2.circle(depth_array,tuple((x,y)), 5, 65536, thickness=7)
+			cv2.circle(depth_array,tuple((u,v)), 5, 65536, thickness=7)
 			
 			ultimopassaggio=frame_count+3 #3 indica quanti frame devono passare dopo il passaggio dell'ultima persona
 			
@@ -341,6 +355,7 @@ def main():
 				pshoulder = 0
 				shoulderH = 0
 				headShoulder = 0
+				shoulderd = 0
 		
 		#cv2.imshow("RGB", color_array)
 		depth_array = depth_array/10000.		
