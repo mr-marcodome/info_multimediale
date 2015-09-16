@@ -184,7 +184,7 @@ def extractMaskPropHead(depth_array_fore, H):
 	maskPropH = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
 	
 	return maskPropH
-
+	
 def getMaxHeight(depth, mask):
 
 	#applicazione della maschera, così si è certi che il massimo venga
@@ -203,6 +203,14 @@ def getMinHeight(depth, mask):
 	h,_,posmin,_ = cv2.minMaxLoc(mask)
 	
 	return h, posmin[0], posmin[1]
+
+def calculateHeightDist(x, y, u, v):
+	
+	#Calcola la distanza del punto di minima altezza attuale da quello precedente
+	p1 = (x,y)
+	p2 = (u,v)
+	
+	return distanza(p1,p2)
 	
 def main():
 
@@ -252,6 +260,9 @@ def main():
 	maxdist = 0
 	shoulderH = 0
 	shoulderd = 0
+	hpelvis = 0
+	x = 0
+	y = 0
 	pn1 = cv2.KeyPoint()
 	pn2 = cv2.KeyPoint()
 	while (True):
@@ -288,10 +299,17 @@ def main():
 		H, x, y = getMaxHeight(depth_array_fore, mask)
 		if H>HMAX:
 			HMAX = H	
-		
 		if (H>MIN_HEIGHT):
+			
+			#Stima altezza del bacino
+			hpelvis = H*0.585
 			#Calcolo dell'altezza minima
 			h, u, v = getMinHeight(depth_array_fore, mask)
+			#Calcolo distanza tra altezze minime
+			minDist = calculateHeightDist(x, y, u, v)
+			#Variabili di swap per conservare le coordinate del frame precedente
+			x = u
+			y = v
 			#Creazione maschera personalizzata sull'altezza della persona per calcolo larghezza spalle
 			maskPropS = extractMaskPropShoulder(depth_array_fore, H)
 			#Calcolo larghezza spalle
@@ -302,6 +320,10 @@ def main():
 			headShoulder = H-shoulderH
 			#Calcolo area e perimetro spalle
 			sarea, pshoulder = calculateShoulderAreaPerimeter(maskPropS, i)
+			
+			os.chdir("blob")
+			cv2.imwrite(str(i)+"blob.png",mask)
+			os.chdir("..")
 
 		#Serve per evitare un errato calcolo dell'area della testa in quanto ai bordi del frame 
 		#la dimensione della maschera tende ad aumentare di molto
@@ -325,7 +347,7 @@ def main():
 			
 			cv2.circle(depth_array,tuple((x,y)), 5, 65536, thickness=1)
 			
-			line_to_write = VideoId+";"+  str("{:03d}".format(contperid)) +";"+str(frame_count)+";"+str(frame_depth.timestamp)+";"+str(H)+";"+str(HMAX)+";"+str(shoulderd)+";"+str(maxdist)+";"+str(harea)+";"+str(phead)+";"+str(sarea)+";"+str(pshoulder)+";"+str(shoulderH)+";"+str(headShoulder)+"\n"
+			line_to_write = VideoId+";"+  str("{:03d}".format(contperid)) +";"+str(frame_count)+";"+str(frame_depth.timestamp)+";"+str(H)+";"+str(HMAX)+";"+str(shoulderd)+";"+str(maxdist)+";"+str(harea)+";"+str(phead)+";"+str(sarea)+";"+str(pshoulder)+";"+str(shoulderH)+";"+str(headShoulder)+";"+str(hpelvis)+";"+str(minDist)+"\n"
 			print line_to_write
 			tracking_file_all.write(line_to_write)
 			line_to_write_color = VideoId+";"+ str("{:03d}".format(contperid))+";"+str(frame_count)+";"+str(frame_color.timestamp)+"\n"
@@ -356,6 +378,9 @@ def main():
 				shoulderH = 0
 				headShoulder = 0
 				shoulderd = 0
+				hpelvis = 0
+				x = 0
+				y = 0
 		
 		#cv2.imshow("RGB", color_array)
 		depth_array = depth_array/10000.		
