@@ -6,7 +6,6 @@ import numpy as np
 import argparse
 from primesense import openni2
 import cv2, math
-import Image
 
 MIN_RANGE = 150
 MAX_RANGE = 2500
