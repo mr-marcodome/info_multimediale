@@ -261,8 +261,8 @@ def main():
 	shoulderH = 0
 	shoulderd = 0
 	hpelvis = 0
-	x = 0
-	y = 0
+	a = 0
+	b = 0
 	pn1 = cv2.KeyPoint()
 	pn2 = cv2.KeyPoint()
 	while (True):
@@ -306,10 +306,10 @@ def main():
 			#Calcolo dell'altezza minima
 			h, u, v = getMinHeight(depth_array_fore, mask)
 			#Calcolo distanza tra altezze minime
-			minDist = calculateHeightDist(x, y, u, v)
+			minDist = calculateHeightDist(a, b, u, v)
 			#Variabili di swap per conservare le coordinate del frame precedente
-			x = u
-			y = v
+			a = u
+			b = v
 			#Creazione maschera personalizzata sull'altezza della persona per calcolo larghezza spalle
 			maskPropS = extractMaskPropShoulder(depth_array_fore, H)
 			#Calcolo larghezza spalle
@@ -379,8 +379,8 @@ def main():
 				headShoulder = 0
 				shoulderd = 0
 				hpelvis = 0
-				x = 0
-				y = 0
+				a = 0
+				b = 0
 		
 		#cv2.imshow("RGB", color_array)
 		depth_array = depth_array/10000.		
