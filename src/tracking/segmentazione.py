@@ -319,7 +319,7 @@ def main():
 			#Calcolo dell'altezza minima
 			h, u, v = getMinHeight(depth_array_fore, mask)
 			#Calcolo distanza tra altezze minime
-			minDist = calculateHeightDist(a, b, u, v)
+			#minDist = calculateHeightDist(a, b, u, v)
 			#Variabili di swap per conservare le coordinate del frame precedente
 			a = u
 			b = v
@@ -390,15 +390,21 @@ def main():
 			
 			
 			cv2.circle(depth_array,tuple((x,y)), 5, 65536, thickness=1)
-			
-			line_to_write = VideoId+";"+  str("{:03d}".format(contperid)) +";"+str(frame_count)+";"+str(frame_depth.timestamp)+";"+str(H)+";"+str(HMAX)+";"+str(shoulderd)+";"+str(maxdist)+";"+str(harea)+";"+str(phead)+";"+str(sarea)+";"+str(pshoulder)+";"+str(shoulderH)+";"+str(headShoulder)+";"+str(hpelvis)+";"+str(minDist)+";"+ str(colorePersona)+";"+str(coloreCapelli)+"\n"
-			print line_to_write
-			tracking_file_all.write(line_to_write)
-			line_to_write_color = VideoId+";"+ str("{:03d}".format(contperid))+";"+str(frame_count)+";"+str(frame_color.timestamp)+"\n"
-			tracking_file_color.write(line_to_write_color)
+			if (y > 100 and y < 280 and x > 100 and x < 540):
+				line_to_write = VideoId+";"+  str("{:03d}".format(contperid)) +";"+str(frame_count)+";"+str(frame_depth.timestamp)+";"+str(x)+";"+str(y)+";"+str(H)+";"+str(shoulderd)+";"+str(harea)+";"+str(phead)+";"+str(sarea)+";"+str(pshoulder)+";"+str(shoulderH)+";"+str(headShoulder)+";"+str(hpelvis)+";"+ str(colorePersona)+";"+str(coloreCapelli)+"\n"
+				print line_to_write
+				tracking_file_all.write(line_to_write)
+				line_to_write_color = VideoId+";"+ str("{:03d}".format(contperid))+";"+str(frame_count)+";"+str(frame_color.timestamp)+"\n"
+				tracking_file_color.write(line_to_write_color)
 			
 			cv2.circle(depth_array,tuple((x,y)), 5, 65536, thickness=7)
 			cv2.circle(depth_array,tuple((u,v)), 5, 65536, thickness=7)
+			cv2.circle(depth_array,tuple((320,100)), 5, 65536, thickness=5)
+			cv2.circle(depth_array,tuple((320,300)), 5, 65536, thickness=5)
+			cv2.circle(depth_array,tuple((100,100)), 5, 65536, thickness=5)
+			cv2.circle(depth_array,tuple((100,280)), 5, 65536, thickness=5)
+			cv2.circle(depth_array,tuple((540,100)), 5, 65536, thickness=5)
+			cv2.circle(depth_array,tuple((540,280)), 5, 65536, thickness=5)
 			
 			ultimopassaggio=frame_count+3 #3 indica quanti frame devono passare dopo il passaggio dell'ultima persona
 			
