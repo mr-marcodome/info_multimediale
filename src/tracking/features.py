@@ -9,7 +9,8 @@ import cv2, math
 
 MIN_RANGE = 150
 MAX_RANGE = 2500
-MIN_AREA = 5000
+MIN_AREA = 1500
+MIN_AREAH = 500
 MIN_HEIGHT = 1200
 N_ITER = 5
 DIR1 = "dist"
@@ -84,9 +85,9 @@ def calculateShoulderAreaPerimeter(mask, i):
 			#Calcolo area e perimetro
 			area = cv2.contourArea(cnt1)
 			perimeter = cv2.arcLength(cnt1,True)
-			os.chdir(DIR3)
-			cv2.imwrite(str(i)+"sarea.png",mask)
-			os.chdir("..")
+			#os.chdir(DIR3)
+			#cv2.imwrite(str(i)+"sarea.png",mask)
+			#os.chdir("..")
 		
 		return area, perimeter
 		
@@ -156,7 +157,7 @@ def extractMask(depth_array_fore):
 def extractMaskPropShoulder(depth_array_fore, H):
 
 	#segmentazione della maschera
-	mask = cv2.inRange(depth_array_fore, 1300, H - 230)
+	mask = cv2.inRange(depth_array_fore, H - 600, H - 280)
 	
 	contours, hierarchy = cv2.findContours(mask.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
@@ -170,30 +171,34 @@ def extractMaskPropShoulder(depth_array_fore, H):
 	cv2.drawContours(mask, contours, -1, 0, -1)	
 	
 	#eliminazione del rumore tramite l'operazione morfologica di apertura
-	kernel = np.ones((5,5),np.uint8)
+	kernel = np.ones((3,3),np.uint8)
 	maskPropS = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+	maskPropS = cv2.dilate(maskPropS,kernel,iterations = 20)
+	maskPropS = cv2.erode(maskPropS,kernel,iterations = 20)
 	
 	return maskPropS
 
 def extractMaskPropHead(depth_array_fore, H):
 
 	#segmentazione della maschera
-	mask = cv2.inRange(depth_array_fore, H- 150, H)
+	mask = cv2.inRange(depth_array_fore, H- 200, H)
 	
 	contours, hierarchy = cv2.findContours(mask.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
 	#eliminazione, dal vettore contours, dei contorni che hanno area superiore a MIN_AREA (quindi quelli più significativi)
 	for idx, cnt in enumerate(contours):
 		area = cv2.contourArea(cnt)		
-		if (area>MIN_AREA):
+		if (area>MIN_AREAH):
 			contours.pop(idx)	
 		
 	#eliminazione dei contorni rimanenti dalla maschera
 	cv2.drawContours(mask, contours, -1, 0, -1)	
 	
 	#eliminazione del rumore tramite l'operazione morfologica di apertura
-	kernel = np.ones((5,5),np.uint8)
+	kernel = np.ones((3,3),np.uint8)
 	maskPropH = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+	maskPropH = cv2.dilate(maskPropH,kernel,iterations = 10)
+	maskPropS = cv2.erode(maskPropH,kernel,iterations = 40)
 	
 	return maskPropH
 	
@@ -249,7 +254,7 @@ def main():
 	color_stream.start()
 	
 	#estrazione dell'id della persona dal nome del file .oni
-	VideoId=args.video_path.split(".")[0]
+	VideoId=args.video_path.split("/")[-1].split(".")[-2]
 	#file con i punti ad altezza massima dei frame contenenti il soggetto
 	tracking_file_color = open(VideoId + "_color" + EXT,"w")
 	#file con i punti ad altezza massima di tutti i frame del video
@@ -310,9 +315,15 @@ def main():
 		#estrazione della maschera dal depth foreground
 		mask = extractMask(depth_array_fore)
 		H, x, y = getMaxHeight(depth_array_fore, mask)
-		if H>HMAX:
-			HMAX = H	
-		if (H>MIN_HEIGHT):
+		Hi = H
+		if (y != 0):
+			H = H - (y - 100)
+		if (y > 300):
+			H -= y*(0.21)
+		print H, y
+		if Hi>HMAX:
+			HMAX = Hi	
+		if (Hi>MIN_HEIGHT):
 			
 			#Stima altezza del bacino
 			hpelvis = H*0.585
@@ -324,22 +335,21 @@ def main():
 			a = u
 			b = v
 			#Creazione maschera personalizzata sull'altezza della persona per calcolo larghezza spalle
-			maskPropS = extractMaskPropShoulder(depth_array_fore, H)
+			maskPropS = extractMaskPropShoulder(depth_array_fore, Hi)
+			os.chdir(DIR3)
+			cv2.imwrite(str(i)+"sarea.png",maskPropS)
+			os.chdir("..")
 			#Calcolo larghezza spalle
 			maxdist, shoulderd, p1, p2 = calculateShoulderWidth(maskPropS, maxdist, i, pn1, pn2)
 			#Calcolo altezza spalle nei punti da cui si è calcolata la larghezza spalle
 			shoulderH = (depth_array_fore[p1[1], p1[0]] + depth_array_fore[p2[1], p2[0]])/2
 			#Calcolo altezza testa spalle
-			headShoulder = H-shoulderH
+			headShoulder = Hi-shoulderH
 			#Calcolo area e perimetro spalle
 			sarea, pshoulder = calculateShoulderAreaPerimeter(maskPropS, i)
-			
-			os.chdir("blob")
-			cv2.imwrite(str(i)+"blob.png",mask)
-			os.chdir("..")
 		
 			# Estrazione Colore Dei Vestiti in RGB
-			mask_foreground = extractMaskPropShoulder(depth_array_fore, H)
+			mask_foreground = extractMaskPropShoulder(depth_array_fore, Hi)
 			kernel_erode = np.ones((5,5),np.uint8)
 			mask_foreground = cv2.erode(mask_foreground,kernel_erode,iterations=5)
 
@@ -355,7 +365,7 @@ def main():
 				colorePersona = (getMaxValIndex(rChannel),getMaxValIndex(gChannel),getMaxValIndex(bChannel))
 
 		# Estrazione Colore Dei Capelli in RGB
-			mask_foreground = extractMaskPropHead(depth_array_fore, H)
+			mask_foreground = extractMaskPropHead(depth_array_fore, Hi)
 			mask_foreground = cv2.erode(mask_foreground,kernel_erode,iterations=5)
 
 			temp_mask = cv2.cvtColor(mask_foreground,cv2.COLOR_GRAY2RGB)
@@ -373,7 +383,7 @@ def main():
 		#la dimensione della maschera tende ad aumentare di molto
 		if (x > 100 and x < 500):
 			#Creazione maschera personalizzata sull'altezza della persona per calcolo area Testa
-			maskPropH = extractMaskPropHead(depth_array_fore, H)
+			maskPropH = extractMaskPropHead(depth_array_fore, Hi)
 			os.chdir(DIR2)
 			cv2.imwrite(str(i)+"head.png",maskPropH)
 			os.chdir("..")
@@ -381,26 +391,25 @@ def main():
 			phead = calculateHeadPerimeter(maskPropH)
 
 		#se il punto ad altezza massima nel frame depth è maggiore della soglia, si salvano le immagini
-		if (H>MIN_HEIGHT):
+		if (Hi>MIN_HEIGHT):
 			#gestione più persone
 			if (newid==True):
 				contperid+=1
 				newid=False
 				
+			if (x > 100 and x < 600 and (x + y) > 150 ):
 			
-			
-			cv2.circle(depth_array,tuple((x,y)), 5, 65536, thickness=1)
-			#if (y > 100 and y < 280 and x > 100 and x < 540 and shoulderd != 0):
-			line_to_write = str(H)+";"+str(shoulderd)+";"+str(harea)+";"+str(phead)+";"+str(sarea)+";"+str(pshoulder)+";"+str(shoulderH)+";"+str(headShoulder)+";"+str(hpelvis)+";"+ str(colorePersona[0])+";"+str(colorePersona[1])+";"+str(colorePersona[2])+";"+str(coloreCapelli[0])+";"+str(coloreCapelli[1])+";"+str(coloreCapelli[2])+"\n"
-			print line_to_write
-			tracking_file_all.write(line_to_write)
-			line_to_write_color = VideoId+";"+ str("{:03d}".format(contperid))+";"+str(frame_count)+";"+str(frame_color.timestamp)+"\n"
-			tracking_file_color.write(line_to_write_color)
-			
+				cv2.circle(depth_array,tuple((x,y)), 5, 65536, thickness=1)
+				line_to_write = str("{:03d}".format(contperid)) +";"+str(H)+";"+str(shoulderd)+";"+str(harea)+";"+str(phead)+";"+str(sarea)+";"+str(pshoulder)+";"+str(shoulderH)+";"+str(headShoulder)+";"+str(hpelvis)+";"+ str(colorePersona[0])+";"+str(colorePersona[1])+";"+str(colorePersona[2])+";"+str(coloreCapelli[0])+";"+str(coloreCapelli[1])+";"+str(coloreCapelli[2])+"\n"
+				print line_to_write
+				tracking_file_all.write(line_to_write)
+				line_to_write_color = VideoId+";"+ str("{:03d}".format(contperid))+";"+str(frame_count)+";"+str(frame_color.timestamp)+"\n"
+				tracking_file_color.write(line_to_write_color)
+					
 			cv2.circle(depth_array,tuple((x,y)), 5, 65536, thickness=7)
 			cv2.circle(depth_array,tuple((u,v)), 5, 65536, thickness=7)
 			cv2.circle(depth_array,tuple((320,100)), 5, 65536, thickness=5)
-			cv2.circle(depth_array,tuple((320,300)), 5, 65536, thickness=5)
+			cv2.circle(depth_array,tuple((320,280)), 5, 65536, thickness=5)
 			cv2.circle(depth_array,tuple((100,100)), 5, 65536, thickness=5)
 			cv2.circle(depth_array,tuple((100,280)), 5, 65536, thickness=5)
 			cv2.circle(depth_array,tuple((540,100)), 5, 65536, thickness=5)
@@ -434,6 +443,7 @@ def main():
 		
 		depth_array = depth_array/10000.		
 		cv2.imshow("Depth", depth_array)
+		cv2.imshow("Color", colorMask)
 			
 		ch = 0xFF & cv2.waitKey(1)
 		if ch == 27:
