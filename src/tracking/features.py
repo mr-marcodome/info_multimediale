@@ -171,7 +171,7 @@ def extractMaskPropShoulder(depth_array_fore, H):
 	cv2.drawContours(mask, contours, -1, 0, -1)	
 	
 	#eliminazione del rumore tramite l'operazione morfologica di apertura
-	kernel = np.ones((3,3),np.uint8)
+	kernel = np.ones((4,4),np.uint8)
 	maskPropS = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
 	maskPropS = cv2.dilate(maskPropS,kernel,iterations = 20)
 	maskPropS = cv2.erode(maskPropS,kernel,iterations = 20)
@@ -195,7 +195,7 @@ def extractMaskPropHead(depth_array_fore, H):
 	cv2.drawContours(mask, contours, -1, 0, -1)	
 	
 	#eliminazione del rumore tramite l'operazione morfologica di apertura
-	kernel = np.ones((3,3),np.uint8)
+	kernel = np.ones((4,4),np.uint8)
 	maskPropH = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
 	maskPropH = cv2.dilate(maskPropH,kernel,iterations = 10)
 	maskPropS = cv2.erode(maskPropH,kernel,iterations = 40)
@@ -280,6 +280,7 @@ def main():
 	hpelvis = 0
 	a = 0
 	b = 0
+	j = 0
 	pn1 = cv2.KeyPoint()
 	pn2 = cv2.KeyPoint()
 	while (True):
@@ -316,7 +317,7 @@ def main():
 		mask = extractMask(depth_array_fore)
 		H, x, y = getMaxHeight(depth_array_fore, mask)
 		Hi = H
-		if (y != 0):
+		if (y > 0):
 			H = H - (y - 100)
 		if (y > 300):
 			H -= y*(0.21)
@@ -357,7 +358,7 @@ def main():
 			colorMask = cv2.bitwise_and(color_array,temp_mask)
 
 			#calcolo istogramma
-			if H > 1200:
+			if Hi > MIN_HEIGHT:
 				bChannel = cv2.calcHist([colorMask],[0],mask_foreground,[256],[0,256])
 				gChannel = cv2.calcHist([colorMask],[1],mask_foreground,[256],[0,256])
 				rChannel = cv2.calcHist([colorMask],[2],mask_foreground,[256],[0,256])
@@ -372,7 +373,7 @@ def main():
 			colorMask = cv2.bitwise_and(color_array,temp_mask)
 
 			#calcolo istogramma
-			if H > 1200:
+			if Hi > MIN_HEIGHT:
 				bChannel = cv2.calcHist([colorMask],[0],mask_foreground,[256],[0,256])
 				gChannel = cv2.calcHist([colorMask],[1],mask_foreground,[256],[0,256])
 				rChannel = cv2.calcHist([colorMask],[2],mask_foreground,[256],[0,256])
@@ -381,7 +382,7 @@ def main():
 
 		#Serve per evitare un errato calcolo dell'area della testa in quanto ai bordi del frame 
 		#la dimensione della maschera tende ad aumentare di molto
-		if (x > 100 and x < 500):
+		if (x > 100 and x < 540):
 			#Creazione maschera personalizzata sull'altezza della persona per calcolo area Testa
 			maskPropH = extractMaskPropHead(depth_array_fore, Hi)
 			os.chdir(DIR2)
@@ -397,14 +398,17 @@ def main():
 				contperid+=1
 				newid=False
 				
-			if (x > 100 and x < 600 and (x + y) > 150 ):
-			
+			if (x > 100 and x < 540 and (x + y) > 150 ):
+				j += 1
 				cv2.circle(depth_array,tuple((x,y)), 5, 65536, thickness=1)
-				line_to_write = str("{:03d}".format(contperid)) +";"+str(H)+";"+str(shoulderd)+";"+str(harea)+";"+str(phead)+";"+str(sarea)+";"+str(pshoulder)+";"+str(shoulderH)+";"+str(headShoulder)+";"+str(hpelvis)+";"+ str(colorePersona[0])+";"+str(colorePersona[1])+";"+str(colorePersona[2])+";"+str(coloreCapelli[0])+";"+str(coloreCapelli[1])+";"+str(coloreCapelli[2])+"\n"
+				line_to_write = str("{:03d}".format(contperid)) +";"+str(H)+";"+str(shoulderd)+";"+str(harea)+";"+str(phead)+";"+str(sarea)+";"+str(pshoulder)+";"+str(hpelvis)+";"+str(shoulderH)+";"+str(headShoulder)+";"+ str(colorePersona[0])+";"+str(colorePersona[1])+";"+str(colorePersona[2])+";"+str(coloreCapelli[0])+";"+str(coloreCapelli[1])+";"+str(coloreCapelli[2])+"\n"         
 				print line_to_write
 				tracking_file_all.write(line_to_write)
 				line_to_write_color = VideoId+";"+ str("{:03d}".format(contperid))+";"+str(frame_count)+";"+str(frame_color.timestamp)+"\n"
 				tracking_file_color.write(line_to_write_color)
+
+				if j > 60:
+					exit()
 					
 			cv2.circle(depth_array,tuple((x,y)), 5, 65536, thickness=7)
 			cv2.circle(depth_array,tuple((u,v)), 5, 65536, thickness=7)
@@ -440,10 +444,11 @@ def main():
 				hpelvis = 0
 				a = 0
 				b = 0
+				j = 0
 		
 		depth_array = depth_array/10000.		
-		cv2.imshow("Depth", depth_array)
-		cv2.imshow("Color", colorMask)
+		#cv2.imshow("Depth", depth_array)
+		#cv2.imshow("Color", colorMask)
 			
 		ch = 0xFF & cv2.waitKey(1)
 		if ch == 27:
