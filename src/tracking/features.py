@@ -211,24 +211,6 @@ def getMaxHeight(depth, mask):
 	
 	return H, posmax[0], posmax[1]
 	
-def getMinHeight(depth, mask):
-
-	#applicazione della maschera, così si è certi che il minimo venga
-	#trovato sopra al soggetto
-	mask = cv2.bitwise_and(depth,depth,mask = mask)
-	mask += 65535
-	h,_,posmin,_ = cv2.minMaxLoc(mask)
-	
-	return h, posmin[0], posmin[1]
-
-def calculateHeightDist(x, y, u, v):
-	
-	#Calcola la distanza del punto di minima altezza attuale da quello precedente
-	p1 = (x,y)
-	p2 = (u,v)
-	
-	return distanza(p1,p2)
-	
 def main():
 
 	p = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter, description="")
@@ -317,24 +299,19 @@ def main():
 		mask = extractMask(depth_array_fore)
 		H, x, y = getMaxHeight(depth_array_fore, mask)
 		Hi = H
+		#Correzione dell'errore sull'altezza all'aumentare della y
 		if (y > 0):
 			H = H - (y - 100)
 		if (y > 300):
 			H -= y*(0.21)
-		print H, y
+
 		if Hi>HMAX:
 			HMAX = Hi	
 		if (Hi>MIN_HEIGHT):
 			
 			#Stima altezza del bacino
 			hpelvis = H*0.585
-			#Calcolo dell'altezza minima
-			h, u, v = getMinHeight(depth_array_fore, mask)
-			#Calcolo distanza tra altezze minime
-			#minDist = calculateHeightDist(a, b, u, v)
-			#Variabili di swap per conservare le coordinate del frame precedente
-			a = u
-			b = v
+
 			#Creazione maschera personalizzata sull'altezza della persona per calcolo larghezza spalle
 			maskPropS = extractMaskPropShoulder(depth_array_fore, Hi)
 			os.chdir(DIR3)
@@ -411,13 +388,6 @@ def main():
 					exit()
 					
 			cv2.circle(depth_array,tuple((x,y)), 5, 65536, thickness=7)
-			cv2.circle(depth_array,tuple((u,v)), 5, 65536, thickness=7)
-			cv2.circle(depth_array,tuple((320,100)), 5, 65536, thickness=5)
-			cv2.circle(depth_array,tuple((320,280)), 5, 65536, thickness=5)
-			cv2.circle(depth_array,tuple((100,100)), 5, 65536, thickness=5)
-			cv2.circle(depth_array,tuple((100,280)), 5, 65536, thickness=5)
-			cv2.circle(depth_array,tuple((540,100)), 5, 65536, thickness=5)
-			cv2.circle(depth_array,tuple((540,280)), 5, 65536, thickness=5)
 			
 			ultimopassaggio=frame_count+3 #3 indica quanti frame devono passare dopo il passaggio dell'ultima persona
 			
@@ -425,10 +395,6 @@ def main():
 			line_to_write =  VideoId+";"+ "NULL"+";"+ str(frame_count)+";"+str(frame_depth.timestamp)+";"+ "NULL"+";"+ "NULL"+";"+ "NULL"+"\n"
 			print line_to_write
 			
-
-			#tracking_file_all.write(line_to_write)
-			#line_to_write_color = VideoId+";"+ "NULL" +";"+str(frame_count)+";"+str(frame_color.timestamp)+"\n"
-			#tracking_file_color.write(line_to_write_color)
 			#gestione multipersone
 			if (frame_count>ultimopassaggio):
 				newid=True
@@ -447,8 +413,7 @@ def main():
 				j = 0
 		
 		depth_array = depth_array/10000.		
-		#cv2.imshow("Depth", depth_array)
-		#cv2.imshow("Color", colorMask)
+		cv2.imshow("Depth", depth_array)
 			
 		ch = 0xFF & cv2.waitKey(1)
 		if ch == 27:
