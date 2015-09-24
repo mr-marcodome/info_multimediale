@@ -173,8 +173,8 @@ def extractMaskPropShoulder(depth_array_fore, H):
 	#eliminazione del rumore tramite l'operazione morfologica di apertura
 	kernel = np.ones((4,4),np.uint8)
 	maskPropS = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
-	maskPropS = cv2.dilate(maskPropS,kernel,iterations = 20)
-	maskPropS = cv2.erode(maskPropS,kernel,iterations = 20)
+	maskPropS = cv2.dilate(maskPropS,kernel,iterations = 10)
+	maskPropS = cv2.erode(maskPropS,kernel,iterations = 10)
 	
 	return maskPropS
 
@@ -197,8 +197,8 @@ def extractMaskPropHead(depth_array_fore, H):
 	#eliminazione del rumore tramite l'operazione morfologica di apertura
 	kernel = np.ones((4,4),np.uint8)
 	maskPropH = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
-	maskPropH = cv2.dilate(maskPropH,kernel,iterations = 10)
-	maskPropS = cv2.erode(maskPropH,kernel,iterations = 40)
+	maskPropH = cv2.dilate(maskPropH,kernel,iterations = N_ITER)
+	maskPropS = cv2.erode(maskPropH,kernel,iterations = 10)
 	
 	return maskPropH
 	
