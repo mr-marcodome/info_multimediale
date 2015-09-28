@@ -7,6 +7,7 @@ Run the follow python script for people tracking. It creates csv files with all 
 ```sh
 $ python2 src/tracking/features.py --v video.oni
 ```
+```
 Launch features for generate a single csv file wich contains the feature information about a single subject.
 To perform feature tracking to many subject video, edit and run training.sh to generate many csv files.
 
